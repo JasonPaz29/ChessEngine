@@ -48,6 +48,9 @@ struct Move {
 	int fromCol;
 	int toRow;
 	int toCol;
+	PieceType promotion;
+	bool isCastle;
+	bool isEnPassant;
 };
 
 
@@ -57,7 +60,13 @@ struct ChessBoard {
 	float x = 100.0f;
 	float y = 100.0f;
 	Piece board[8][8];	
-	bool isFriendyPiece(int row, int col, PieceColor color);
+	bool whiteCanCastleKingSide = true;
+	bool whiteCanCastleQueenSide = true;
+	bool blackCanCastleKingSide = true;
+	bool blackCanCastleQueenSide = true;
+	bool hasEnPassantTarget = false;
+	int enPassantTargetRow = -1;
+	int enPassantTargetCol = -1;
 	void DisplayBoard(){
 		int color_turn = 0;
 		Color color = {255, 255, 255, 255};
@@ -116,6 +125,61 @@ struct ChessBoard {
 					DrawTexturePro(chessPieces, piece.GetSourceRect(pieceWidth, pieceHeight), piece.GetDestRect(size, col, row), origin, 0.0f, WHITE);
 				}
 			}
+		}
+	}
+
+	Rectangle GetPromotionButtonRect(int index){
+		float buttonSize = 82.0f;
+		float totalWidth = buttonSize * 4.0f;
+		float startX = x + ((size * 8.0f) - totalWidth) / 2.0f;
+		float startY = y + (size * 3.5f);
+
+		return {
+			startX + (buttonSize * index),
+			startY,
+			buttonSize,
+			buttonSize
+		};
+	}
+
+	PieceType PromotionTypeAtIndex(int index){
+		PieceType promotionTypes[4] = {Queen, Rook, Bishop, Knight};
+		return promotionTypes[index];
+	}
+
+	PieceType GetPromotionChoice(Vector2 mouse){
+		for (int i = 0; i < 4; i++){
+			if (CheckCollisionPointRec(mouse, GetPromotionButtonRect(i))){
+				return PromotionTypeAtIndex(i);
+			}
+		}
+
+		return Empty;
+	}
+
+	void DisplayPromotionMenu(Texture2D chessPieces, PieceColor color){
+		Vector2 origin = {0.0f, 0.0f};
+		float pieceWidth = chessPieces.width / 6.0f;
+		float pieceHeight = chessPieces.height / 2.0f;
+
+		Rectangle firstButton = GetPromotionButtonRect(0);
+		DrawRectangle(firstButton.x - 10, firstButton.y - 10, (firstButton.width * 4) + 20, firstButton.height + 20, {20, 20, 20, 230});
+		DrawRectangleLinesEx({firstButton.x - 10, firstButton.y - 10, (firstButton.width * 4) + 20, firstButton.height + 20}, 2, WHITE);
+
+		for (int i = 0; i < 4; i++){
+			Rectangle button = GetPromotionButtonRect(i);
+			Piece option = Piece{PromotionTypeAtIndex(i), color};
+			Rectangle destination = {
+				button.x + 8,
+				button.y + 8,
+				button.width - 16,
+				button.height - 16
+			};
+
+			Color buttonColor = CheckCollisionPointRec(GetMousePosition(), button) ? Color{80, 80, 80, 255} : Color{45, 45, 45, 255};
+			DrawRectangleRec(button, buttonColor);
+			DrawRectangleLinesEx(button, 2, WHITE);
+			DrawTexturePro(chessPieces, option.GetSourceRect(pieceWidth, pieceHeight), destination, origin, 0.0f, WHITE);
 		}
 	}
 
@@ -211,7 +275,7 @@ struct ChessBoard {
 		if (colDifference == 0 && rowDifference == direction && board[move.toRow][move.toCol].type == Empty){
 			return true;
 		}
-		else if (colDifference == 0 && rowDifference == direction * 2 && isPathClear(move)){
+		else if (colDifference == 0 && rowDifference == direction * 2 && board[move.toRow][move.toCol].type == Empty && isPathClear(move)){
 			if (rowDifference < 0 && move.fromRow == 6){
 				return true;
 			}
@@ -220,6 +284,9 @@ struct ChessBoard {
 			}
 		}
 		else if (colDifference == 1 && rowDifference == direction && isEnemyPiece(move.toRow, move.toCol, piece.color)){
+			return true;
+		}
+		else if (colDifference == 1 && rowDifference == direction && (move.toRow == enPassantTargetRow && move.toCol == enPassantTargetCol) && hasEnPassantTarget && board[move.toRow][move.toCol].type == Empty){
 			return true;
 		}
 		return false;
@@ -258,8 +325,94 @@ struct ChessBoard {
 
 		return isPathClear(move);
 	}
+	bool isCastleMove(Move move){
+		if (!isInsideBoard(move.fromRow, move.fromCol) || !isInsideBoard(move.toRow, move.toCol)){
+			return false;
+		}
+
+		Piece piece = board[move.fromRow][move.fromCol];
+
+		return piece.type == King &&
+           move.fromRow == move.toRow &&
+           abs(move.toCol - move.fromCol) == 2;
+}
+
+	bool isValidCastle(Move move){
+		if (!isCastleMove(move)){
+			return false;
+		}
+
+		Piece king = board[move.fromRow][move.fromCol];
+		PieceColor kingColor = king.color;
+		PieceColor attacker = (kingColor == WhitePiece) ? BlackPiece : WhitePiece;
+		int homeRow = (kingColor == WhitePiece) ? 7 : 0;
+		bool kingSide = move.toCol > move.fromCol;
+		int rookCol = kingSide ? 7 : 0;
+
+		if (move.fromRow != homeRow || move.fromCol != 4 || move.toRow != homeRow){
+			return false;
+		}
+
+		if (kingSide && move.toCol != 6){
+			return false;
+		}
+
+		if (!kingSide && move.toCol != 2){
+			return false;
+		}
+
+		if (kingSide){
+			if (kingColor == WhitePiece && !whiteCanCastleKingSide){
+				return false;
+			}
+			if (kingColor == BlackPiece && !blackCanCastleKingSide){
+				return false;
+			}
+		}
+		else {
+			if (kingColor == WhitePiece && !whiteCanCastleQueenSide){
+				return false;
+			}
+			if (kingColor == BlackPiece && !blackCanCastleQueenSide){
+				return false;
+			}
+		}
+
+		Piece rook = board[homeRow][rookCol];
+		if (rook.type != Rook || rook.color != kingColor){
+			return false;
+		}
+
+		if (kingSide){
+			if (board[homeRow][5].type != Empty || board[homeRow][6].type != Empty){
+				return false;
+			}
+			if (isSquareAttacked(homeRow, 4, attacker) ||
+				isSquareAttacked(homeRow, 5, attacker) ||
+				isSquareAttacked(homeRow, 6, attacker)){
+				return false;
+			}
+		}
+		else {
+			if (board[homeRow][1].type != Empty ||
+				board[homeRow][2].type != Empty ||
+				board[homeRow][3].type != Empty){
+				return false;
+			}
+			if (isSquareAttacked(homeRow, 4, attacker) ||
+				isSquareAttacked(homeRow, 3, attacker) ||
+				isSquareAttacked(homeRow, 2, attacker)){
+				return false;
+			}
+		}
+
+		return true;
+}
 
 	bool isValidKingMove(Move move){
+		if (isCastleMove(move)){
+			return isValidCastle(move);
+		}
 		int rowDifference = abs(move.toRow - move.fromRow);
 		int colDifference = abs(move.toCol - move.fromCol);
 
@@ -331,6 +484,10 @@ struct ChessBoard {
 	bool isAttackedByKing(int targetRow, int targetCol, PieceColor color){
 		for (int rowOffset = -1; rowOffset < 2; rowOffset++){
 			for (int colOffset = -1; colOffset < 2; colOffset++){
+				if (rowOffset == 0 && colOffset == 0){
+					continue;
+				}
+
 				int row = targetRow + rowOffset;
 				int col = targetCol + colOffset;
 
@@ -435,12 +592,156 @@ struct ChessBoard {
 		return false;
 	}
 
-	void makeMoveUnchecked(Move move, float squareSize){
-		if (move.fromRow >= 0 && move.fromRow < 8 && move.fromCol >= 0 && move.fromCol < 8){
-			Piece temp = board[move.fromRow][move.fromCol];
+	void PromotePawn(int row, int col, PieceType promotedType){
+		Piece pawn = board[row][col];
+
+		if (pawn.type != Pawn){
+			return;
+		}
+
+		if (promotedType != Queen &&
+			promotedType != Rook &&
+			promotedType != Knight &&
+			promotedType != Bishop){
+				return;
+			}
+		board[row][col] = Piece{promotedType, pawn.color};
+	}
+
+	bool isPromotionMove(Move move){
+		if (!isInsideBoard(move.fromRow, move.fromCol) ||
+			!isInsideBoard(move.toRow, move.toCol)) {
+			return false;
+}
+		Piece piece = board[move.fromRow][move.fromCol];
+
+		if (piece.type != Pawn){
+			return false;
+		}
+		if (piece.color == WhitePiece){
+			if (move.toRow != 0){
+				return false;
+			}
+		}
+		else {
+			if(move.toRow != 7){
+				return false;
+			}
+		}
+		return true;
+
+	}
+
+	void makeMoveUnchecked(Move move){
+		int direction;
+		if (!isInsideBoard(move.fromRow, move.fromCol) || !isInsideBoard(move.toRow, move.toCol)){
+			return;
+		}
+
+		Piece movingPiece = board[move.fromRow][move.fromCol];
+		bool isEnPassantCapture = movingPiece.type == Pawn &&
+								  hasEnPassantTarget &&
+								  move.toRow == enPassantTargetRow &&
+								  move.toCol == enPassantTargetCol &&
+								  board[move.toRow][move.toCol].type == Empty &&
+								  abs(move.toCol - move.fromCol) == 1;
+
+		hasEnPassantTarget = false;
+		enPassantTargetRow = -1;
+		enPassantTargetCol = -1;
+
+		if (isCastleMove(move)){
+			Piece king = board[move.fromRow][move.fromCol];
+			int rookFromCol = (move.toCol > move.fromCol) ? 7 : 0;
+			int rookToCol = (move.toCol > move.fromCol) ? move.toCol - 1 : move.toCol + 1;
+			Piece rook = board[move.fromRow][rookFromCol];
+
+			board[move.toRow][move.toCol] = king;
+			board[move.fromRow][move.fromCol] = Piece{Empty, NoColor};
+			board[move.fromRow][rookToCol] = rook;
+			board[move.fromRow][rookFromCol] = Piece{Empty, NoColor};
+
+			if (king.color == WhitePiece){
+				whiteCanCastleKingSide = false;
+				whiteCanCastleQueenSide = false;
+			}
+			else {
+				blackCanCastleKingSide = false;
+				blackCanCastleQueenSide = false;
+			}
+		}
+		
+		else{
+			Piece temp = movingPiece;
+			Piece captured = isInsideBoard(move.toRow, move.toCol) ? board[move.toRow][move.toCol] : Piece{Empty, NoColor};
 			if (temp.type != Empty){
 				temp.selected = true;
 			}
+			if (temp.type == King){
+				if (temp.color == WhitePiece){
+					whiteCanCastleKingSide = false;
+					whiteCanCastleQueenSide = false;
+				}
+				else{
+					blackCanCastleKingSide = false;
+					blackCanCastleQueenSide = false;
+				}
+			}
+			else if (temp.type == Rook){
+				if (temp.color == WhitePiece){
+					if (move.fromRow == 7 && move.fromCol == 7){
+						whiteCanCastleKingSide = false;
+					}
+					else if (move.fromRow == 7 && move.fromCol == 0){
+						whiteCanCastleQueenSide = false;
+					}
+				}
+				else {
+					if (move.fromRow == 0 && move.fromCol == 7){
+						blackCanCastleKingSide = false;
+					}
+					else if (move.fromRow == 0 && move.fromCol == 0){
+						blackCanCastleQueenSide = false;
+					}
+				}
+				}
+			else if (temp.type == Pawn){
+				if (abs(move.toRow - move.fromRow) == 2){
+					hasEnPassantTarget = true;
+					enPassantTargetCol = move.fromCol;
+					enPassantTargetRow = (move.toRow + move.fromRow) / 2;
+				}
+			}
+
+			if (captured.type == Rook){
+				if (captured.color == WhitePiece){
+					if (move.toRow == 7 && move.toCol == 7){
+						whiteCanCastleKingSide = false;
+					}
+					else if (move.toRow == 7 && move.toCol == 0){
+						whiteCanCastleQueenSide = false;
+					}
+				}
+				else if (captured.color == BlackPiece){
+					if (move.toRow == 0 && move.toCol == 7){
+						blackCanCastleKingSide = false;
+					}
+					else if (move.toRow == 0 && move.toCol == 0){
+						blackCanCastleQueenSide = false;
+					}
+				}
+			}
+
+			else if (isEnPassantCapture){
+				if (temp.color == WhitePiece){
+					direction = -1;
+				}
+				else {
+					direction = 1;
+				}
+				board[move.toRow-direction][move.toCol] = Piece{Empty, NoColor};
+			}
+				
 	// 2. Updating Positions
 			if (temp.selected) {
 				// Stop dragging when mouse button is released
@@ -469,6 +770,9 @@ struct ChessBoard {
 		else if (piece.type == Empty){
 			return false;
 		}
+		else if (board[move.toRow][move.toCol].type == King){
+			return false;
+		}
 		switch (piece.type){
 			case PieceType::Pawn:
 				return isValidPawnMove(piece, move);
@@ -489,12 +793,12 @@ struct ChessBoard {
 	
 
 
-	bool isLegalMove(Move move, PieceColor color, float squareSize){
+	bool isLegalMove(Move move, PieceColor color){
 		if (!isPseudoLegal(move)){
 			return false;
 		}
 		ChessBoard simulatedBoard = *this;
-    	simulatedBoard.makeMoveUnchecked(move, squareSize);
+    	simulatedBoard.makeMoveUnchecked(move);
 
     	return !simulatedBoard.isKingInCheck(color);
 	}
@@ -512,7 +816,7 @@ struct ChessBoard {
 				for (int toRow = 0; toRow < 8; toRow++){
 					for (int toCol = 0; toCol < 8; toCol++){
 						Move move = {fromRow, fromCol, toRow, toCol};
-						if (isLegalMove(move, color, squareSize)){
+						if (isLegalMove(move, color)){
 							legalMoves.push_back(move);
 						}
 					}
@@ -530,8 +834,11 @@ struct ChessBoard {
 		return !isKingInCheck(kingColor) && legalMoves.empty();
 	}
 
-	void isGameOver(){
+	void Checkmate(){
 		DrawText("It's checkmate...", 190, 200, 100, RED);
+	}
+	void StaleMate(){
+		DrawText("It's stalemate...", 190, 200, 100, RED);
 	}
 };
 
@@ -540,12 +847,17 @@ int main(){
 	ChessBoard chessBoard;	
 	chessBoard.NestBoard();
 	float squareSize = 750.0 / 8.0;
+	bool waitingForPromotion = false;
+	int promotionRow = -1;
+	int promotionCol = -1;
 	Vector2 mouseOffset = {0.0f, 0.0f};
 	Piece temp;
-	PieceColor opposingColor;
-	Move currentMove = {-1, -1, -1, -1};
+	PieceColor opposingColor = NoColor;
+	PieceColor promotionColor = NoColor;
+	Move currentMove = {-1, -1, -1, -1, Empty, false, false};
 	int turn = 0; // 0 = White, 1 = Black
 	bool gameOver = false;
+	bool stalemate = false;
 	
 	InitWindow(1000, 1000, "Chess");
 	SetTargetFPS(60);
@@ -554,12 +866,31 @@ int main(){
 	while (WindowShouldClose() == false)
 	{	Vector2 mouse = GetMousePosition();
 		// 1. Event handling
-		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+		if (waitingForPromotion){
+			if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+				PieceType promotedType = chessBoard.GetPromotionChoice(mouse);
+				if (promotedType != Empty){
+					chessBoard.PromotePawn(promotionRow, promotionCol, promotedType);
+					waitingForPromotion = false;
+
+					if (chessBoard.isCheckMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
+						gameOver = true;
+					}
+					else if (chessBoard.isStaleMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
+						gameOver = true;
+						stalemate = true;
+					}
+
+					turn = 1 - turn;
+				}
+			}
+		}
+		else if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
 			currentMove.fromCol = (mouse.x - 100) / squareSize;
 			currentMove.fromRow = (mouse.y - 100) / squareSize;	
 		}
 
-		if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)){
+		if (!waitingForPromotion && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)){
 			if (chessBoard.isInsideBoard(currentMove.fromRow, currentMove.fromCol)){
 				currentMove.toRow = (mouse.y - 100) / squareSize;
 				currentMove.toCol = (mouse.x - 100) / squareSize;
@@ -571,15 +902,25 @@ int main(){
 					else{
 					opposingColor = WhitePiece;
 					}
-				if (chessBoard.isLegalMove(currentMove, temp.color, squareSize) && chessBoard.isInsideBoard(currentMove.toRow, currentMove.toCol)){
-					chessBoard.makeMoveUnchecked(currentMove, squareSize);
-					if (chessBoard.isCheckMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
-						gameOver = true;
+				if (chessBoard.isInsideBoard(currentMove.toRow, currentMove.toCol) && chessBoard.isLegalMove(currentMove, temp.color)){
+					bool isPromotion = chessBoard.isPromotionMove(currentMove);
+					chessBoard.makeMoveUnchecked(currentMove);
+					if (isPromotion){
+						waitingForPromotion = true;
+						promotionRow = currentMove.toRow;
+						promotionCol = currentMove.toCol;
+						promotionColor = temp.color;
 					}
-					turn = 1 - turn;
-				}
-				else {
-					continue;
+					else {
+						if (chessBoard.isCheckMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
+							gameOver = true;
+						}
+						else if (chessBoard.isStaleMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
+							gameOver= true;
+							stalemate = true;
+						}
+						turn = 1 - turn;
+					}
 				}
 				}
 				
@@ -591,8 +932,14 @@ int main(){
 		chessBoard.DisplayBoard();
 		chessBoard.DisplayCheckHighlights();
 		chessBoard.DisplayPieces(chessPieces);
-		if (gameOver){
-			chessBoard.isGameOver();
+		if (waitingForPromotion){
+			chessBoard.DisplayPromotionMenu(chessPieces, promotionColor);
+		}
+		if (gameOver && !stalemate){
+			chessBoard.Checkmate();
+		}
+		else if (gameOver && stalemate){
+			chessBoard.StaleMate();
 		}
 		EndDrawing();
 	}
