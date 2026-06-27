@@ -53,6 +53,25 @@ struct Move {
 	bool isEnPassant;
 };
 
+struct UndoInfo {
+	Move move;
+
+	Piece movedPiece;
+	Piece capturedPiece;
+	int capturedRow;
+	int capturedCol;
+
+	bool whiteCanCastleKingSide;
+	bool whiteCanCastleQueenSide;
+	bool blackCanCastleKingSide;
+	bool blackCanCastleQueenSide;
+
+	bool hadEnPassantTarget;
+	int enPassantTargetRow;
+	int enPassantTargetCol;
+
+	PieceColor turn;
+};
 
 struct ChessBoard {
 	//Square size
@@ -67,24 +86,15 @@ struct ChessBoard {
 	bool hasEnPassantTarget = false;
 	int enPassantTargetRow = -1;
 	int enPassantTargetCol = -1;
-	void DisplayBoard(){
-		int color_turn = 0;
-		Color color = {255, 255, 255, 255};
-		for (int i = 0; i < 8; i++){
-			for (int j = 0; j < 8; j++){
-				if (color_turn == 0){
-					color = {255, 255, 255, 255};
-				}
-				else if (color_turn == 1){
-					color = {135, 206, 235, 255};
-				}
-				DrawRectangle(x + (j * size), y + (i * size), size, size, color);
-				color_turn = 1 - color_turn;
-			}
-			color_turn = 1 - color_turn;	
-		}
-	}
+	PieceColor turn = WhitePiece;
+	vector<UndoInfo> moveHistory;
 
+	PieceColor opposite(PieceColor color){
+		if (color == WhitePiece){
+			return BlackPiece;
+		}
+		return WhitePiece;
+	}
 	void NestBoard(){
 		board[0][0] = Piece{Rook, BlackPiece};
 		board[0][1] = Piece{Knight, BlackPiece};
@@ -110,89 +120,6 @@ struct ChessBoard {
 		board[7][5] = Piece{Bishop, WhitePiece};
 		board[7][6] = Piece{Knight, WhitePiece};
 		board[7][7] = Piece{Rook, WhitePiece};
-	}
-
-	void DisplayPieces(Texture2D chessPieces){
-		Vector2 origin = {0.0f, 0.0f};
-		float pieceWidth = chessPieces.width / 6.0;
-		float pieceHeight = chessPieces.height / 2.0;
-		float scale = 0.5f;
-
-		for (int row = 0; row < 8; row++){
-			for (int col = 0; col < 8; col++){
-				Piece piece = board[row][col];
-				if (piece.type != Empty){
-					DrawTexturePro(chessPieces, piece.GetSourceRect(pieceWidth, pieceHeight), piece.GetDestRect(size, col, row), origin, 0.0f, WHITE);
-				}
-			}
-		}
-	}
-
-	Rectangle GetPromotionButtonRect(int index){
-		float buttonSize = 82.0f;
-		float totalWidth = buttonSize * 4.0f;
-		float startX = x + ((size * 8.0f) - totalWidth) / 2.0f;
-		float startY = y + (size * 3.5f);
-
-		return {
-			startX + (buttonSize * index),
-			startY,
-			buttonSize,
-			buttonSize
-		};
-	}
-
-	PieceType PromotionTypeAtIndex(int index){
-		PieceType promotionTypes[4] = {Queen, Rook, Bishop, Knight};
-		return promotionTypes[index];
-	}
-
-	PieceType GetPromotionChoice(Vector2 mouse){
-		for (int i = 0; i < 4; i++){
-			if (CheckCollisionPointRec(mouse, GetPromotionButtonRect(i))){
-				return PromotionTypeAtIndex(i);
-			}
-		}
-
-		return Empty;
-	}
-
-	void DisplayPromotionMenu(Texture2D chessPieces, PieceColor color){
-		Vector2 origin = {0.0f, 0.0f};
-		float pieceWidth = chessPieces.width / 6.0f;
-		float pieceHeight = chessPieces.height / 2.0f;
-
-		Rectangle firstButton = GetPromotionButtonRect(0);
-		DrawRectangle(firstButton.x - 10, firstButton.y - 10, (firstButton.width * 4) + 20, firstButton.height + 20, {20, 20, 20, 230});
-		DrawRectangleLinesEx({firstButton.x - 10, firstButton.y - 10, (firstButton.width * 4) + 20, firstButton.height + 20}, 2, WHITE);
-
-		for (int i = 0; i < 4; i++){
-			Rectangle button = GetPromotionButtonRect(i);
-			Piece option = Piece{PromotionTypeAtIndex(i), color};
-			Rectangle destination = {
-				button.x + 8,
-				button.y + 8,
-				button.width - 16,
-				button.height - 16
-			};
-
-			Color buttonColor = CheckCollisionPointRec(GetMousePosition(), button) ? Color{80, 80, 80, 255} : Color{45, 45, 45, 255};
-			DrawRectangleRec(button, buttonColor);
-			DrawRectangleLinesEx(button, 2, WHITE);
-			DrawTexturePro(chessPieces, option.GetSourceRect(pieceWidth, pieceHeight), destination, origin, 0.0f, WHITE);
-		}
-	}
-
-	void DisplayCheckHighlights(){
-		for (int row = 0; row < 8; row++){
-			for (int col = 0; col < 8; col++){
-				Piece piece = board[row][col];
-				if (piece.type == King && isKingInCheck(piece.color)){
-					Vector2 center = {x + (col * size) + (size / 2), y + (row * size) + (size / 2)};
-					DrawCircleGradient(center, size * 0.45f, {255, 0, 0, 180}, {255, 0, 0, 0});
-				}
-			}
-		}
 	}
 
 	bool isFriendlyPiece(int row, int col, PieceColor color){
@@ -290,6 +217,14 @@ struct ChessBoard {
 			return true;
 		}
 		return false;
+	}
+
+	bool isEnPassant(Move move){
+		if (!hasEnPassantTarget){
+			return false;
+		}
+
+		return (abs(move.fromCol - move.toCol) == 1 && (move.toRow == enPassantTargetRow) && (move.toCol == enPassantTargetCol));
 	}
 
 	bool isValidBishopMove(Move move){
@@ -632,8 +567,70 @@ struct ChessBoard {
 
 	}
 
+	void undoMove(){
+		UndoInfo oldMove = moveHistory.back();
+		moveHistory.pop_back();
+		//Undo everything
+		if (oldMove.move.isCastle){
+				// King side
+				if (oldMove.move.toCol - oldMove.move.fromCol > 0){
+					board[oldMove.move.fromRow][oldMove.move.fromCol] = oldMove.movedPiece;
+					board[oldMove.move.fromRow][7] = Piece{Rook, oldMove.movedPiece.color};
+					board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
+					board[oldMove.move.toRow][5] = Piece{Empty, NoColor};
+				}
+				else{
+					board[oldMove.move.fromRow][oldMove.move.fromCol] = oldMove.movedPiece;
+					board[oldMove.move.fromRow][0] = Piece{Rook, oldMove.movedPiece.color};
+					board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
+					board[oldMove.move.toRow][3] = Piece{Empty, NoColor};
+				}
+		}
+		whiteCanCastleKingSide = oldMove.whiteCanCastleKingSide;
+		whiteCanCastleQueenSide = oldMove.whiteCanCastleQueenSide;
+		blackCanCastleKingSide = oldMove.blackCanCastleKingSide;
+		blackCanCastleQueenSide = oldMove.blackCanCastleQueenSide;
+		hasEnPassantTarget = oldMove.hadEnPassantTarget;
+		enPassantTargetCol = oldMove.enPassantTargetCol;
+		enPassantTargetRow = oldMove.enPassantTargetRow;
+		turn = oldMove.turn;
+		if (isInsideBoard(oldMove.capturedRow, oldMove.capturedCol)) {
+    		board[oldMove.capturedRow][oldMove.capturedCol] = oldMove.capturedPiece;
+			if (oldMove.hadEnPassantTarget){
+				board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
+			}
+		}
+		else {
+			board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
+		} 
+		board[oldMove.move.fromRow][oldMove.move.fromCol] = oldMove.movedPiece;
+
+		
+	}
+
+	bool makeMove(Move move){
+		if (!isLegalMove(move, turn)){
+			return false;
+		}
+
+		makeMoveUnchecked(move);
+		turn = opposite(turn);
+
+		return true;
+	}
+
 	void makeMoveUnchecked(Move move){
 		int direction;
+		UndoInfo undo;
+		undo.move = move;
+		undo.whiteCanCastleKingSide = whiteCanCastleKingSide;
+		undo.whiteCanCastleQueenSide = whiteCanCastleQueenSide;
+		undo.blackCanCastleKingSide = blackCanCastleKingSide;
+		undo.blackCanCastleQueenSide = blackCanCastleQueenSide;
+		undo.hadEnPassantTarget = hasEnPassantTarget;
+		undo.enPassantTargetCol = enPassantTargetCol;
+		undo.enPassantTargetRow = enPassantTargetRow;
+		undo.turn = turn;
 		if (!isInsideBoard(move.fromRow, move.fromCol) || !isInsideBoard(move.toRow, move.toCol)){
 			return;
 		}
@@ -651,7 +648,12 @@ struct ChessBoard {
 		enPassantTargetCol = -1;
 
 		if (isCastleMove(move)){
+			undo.move.isCastle = true;
 			Piece king = board[move.fromRow][move.fromCol];
+			undo.movedPiece = king;
+			undo.capturedPiece = Piece{Empty, NoColor};
+			undo.capturedCol = -1;
+			undo.capturedRow = -1;
 			int rookFromCol = (move.toCol > move.fromCol) ? 7 : 0;
 			int rookToCol = (move.toCol > move.fromCol) ? move.toCol - 1 : move.toCol + 1;
 			Piece rook = board[move.fromRow][rookFromCol];
@@ -674,6 +676,15 @@ struct ChessBoard {
 		else{
 			Piece temp = movingPiece;
 			Piece captured = isInsideBoard(move.toRow, move.toCol) ? board[move.toRow][move.toCol] : Piece{Empty, NoColor};
+			undo.capturedPiece = board[move.toRow][move.toCol];
+			if (undo.capturedPiece.type == Empty){
+				undo.capturedCol = -1;
+				undo.capturedRow = -1;
+			}
+			else{
+			undo.capturedRow = move.toRow;
+			undo.capturedCol = move.toCol;
+			}
 			if (temp.type != Empty){
 				temp.selected = true;
 			}
@@ -739,6 +750,9 @@ struct ChessBoard {
 				else {
 					direction = 1;
 				}
+				undo.capturedPiece = board[move.toRow-direction][move.toCol];
+				undo.capturedCol = move.toCol;
+				undo.capturedRow = move.toRow-direction;
 				board[move.toRow-direction][move.toCol] = Piece{Empty, NoColor};
 			}
 				
@@ -747,7 +761,11 @@ struct ChessBoard {
 				// Stop dragging when mouse button is released
 					if (move.toRow >= 0 && move.toRow < 8 && move.toCol >= 0 && move.toCol < 8) {
 							board[move.toRow][move.toCol] = temp;
+							undo.movedPiece = board[move.fromRow][move.fromCol];
 							board[move.fromRow][move.fromCol] = Piece{Empty, NoColor};
+							if (move.promotion != Empty && temp.type == Pawn){
+								board[move.toRow][move.toCol].type = move.promotion;
+							}
 						}
 						else {
 							board[move.fromRow][move.fromCol] = temp;
@@ -756,6 +774,7 @@ struct ChessBoard {
 					}
 					temp.selected = false;
 			}
+			moveHistory.push_back(undo);
 	}
 
 	bool isPseudoLegal(Move move){
@@ -791,7 +810,15 @@ struct ChessBoard {
 		}
 	}
 	
+	void addPromotionMoves(vector<Move>& legalMoves, Move baseMove){
+		PieceType promotionTypes[4] = {Queen, Rook, Bishop, Knight};
 
+		for (int i = 0; i < 4; i++){
+			Move promotionMove = baseMove;
+			promotionMove.promotion = promotionTypes[i];
+			legalMoves.push_back(promotionMove);
+		}
+	}
 
 	bool isLegalMove(Move move, PieceColor color){
 		if (!isPseudoLegal(move)){
@@ -815,9 +842,15 @@ struct ChessBoard {
 				}
 				for (int toRow = 0; toRow < 8; toRow++){
 					for (int toCol = 0; toCol < 8; toCol++){
-						Move move = {fromRow, fromCol, toRow, toCol};
+						Move baseMove = {fromRow, fromCol, toRow, toCol, Empty, false, false};
+						Move move = {fromRow, fromCol, toRow, toCol, Empty, isCastleMove(baseMove), isEnPassant(baseMove)};
 						if (isLegalMove(move, color)){
-							legalMoves.push_back(move);
+							if (isPromotionMove(baseMove)){
+								addPromotionMoves(legalMoves, baseMove);
+							}
+							else {
+								legalMoves.push_back(move);
+							}
 						}
 					}
 				}
@@ -833,10 +866,113 @@ struct ChessBoard {
 	bool isStaleMate(vector<Move> legalMoves, PieceColor kingColor){
 		return !isKingInCheck(kingColor) && legalMoves.empty();
 	}
+};
+
+struct Render {
+	void DisplayBoard(ChessBoard& chessBoard){
+		int color_turn = 0;
+		Color color = {255, 255, 255, 255};
+		for (int i = 0; i < 8; i++){
+			for (int j = 0; j < 8; j++){
+				if (color_turn == 0){
+					color = {255, 255, 255, 255};
+				}
+				else if (color_turn == 1){
+					color = {135, 206, 235, 255};
+				}
+				DrawRectangle(chessBoard.x + (j * chessBoard.size), chessBoard.y + (i * chessBoard.size), chessBoard.size, chessBoard.size, color);
+				color_turn = 1 - color_turn;
+			}
+			color_turn = 1 - color_turn;	
+		}
+	}
+
+	void DisplayPieces(ChessBoard& chessBoard, Texture2D chessPieces){
+		Vector2 origin = {0.0f, 0.0f};
+		float pieceWidth = chessPieces.width / 6.0;
+		float pieceHeight = chessPieces.height / 2.0;
+
+		for (int row = 0; row < 8; row++){
+			for (int col = 0; col < 8; col++){
+				Piece piece = chessBoard.board[row][col];
+				if (piece.type != Empty){
+					DrawTexturePro(chessPieces, piece.GetSourceRect(pieceWidth, pieceHeight), piece.GetDestRect(chessBoard.size, col, row), origin, 0.0f, WHITE);
+				}
+			}
+		}
+	}
+
+	Rectangle GetPromotionButtonRect(ChessBoard& chessBoard, int index){
+		float buttonSize = 82.0f;
+		float totalWidth = buttonSize * 4.0f;
+		float startX = chessBoard.x + ((chessBoard.size * 8.0f) - totalWidth) / 2.0f;
+		float startY = chessBoard.y + (chessBoard.size * 3.5f);
+
+		return {
+			startX + (buttonSize * index),
+			startY,
+			buttonSize,
+			buttonSize
+		};
+	}
+
+	PieceType PromotionTypeAtIndex(int index){
+		PieceType promotionTypes[4] = {Queen, Rook, Bishop, Knight};
+		return promotionTypes[index];
+	}
+
+	PieceType GetPromotionChoice(ChessBoard& chessBoard, Vector2 mouse){
+		for (int i = 0; i < 4; i++){
+			if (CheckCollisionPointRec(mouse, GetPromotionButtonRect(chessBoard, i))){
+				return PromotionTypeAtIndex(i);
+			}
+		}
+
+		return Empty;
+	}
+
+	void DisplayPromotionMenu(ChessBoard& chessBoard, Texture2D chessPieces, PieceColor color){
+		Vector2 origin = {0.0f, 0.0f};
+		float pieceWidth = chessPieces.width / 6.0f;
+		float pieceHeight = chessPieces.height / 2.0f;
+
+		Rectangle firstButton = GetPromotionButtonRect(chessBoard, 0);
+		DrawRectangle(firstButton.x - 10, firstButton.y - 10, (firstButton.width * 4) + 20, firstButton.height + 20, {20, 20, 20, 230});
+		DrawRectangleLinesEx({firstButton.x - 10, firstButton.y - 10, (firstButton.width * 4) + 20, firstButton.height + 20}, 2, WHITE);
+
+		for (int i = 0; i < 4; i++){
+			Rectangle button = GetPromotionButtonRect(chessBoard, i);
+			Piece option = Piece{PromotionTypeAtIndex(i), color};
+			Rectangle destination = {
+				button.x + 8,
+				button.y + 8,
+				button.width - 16,
+				button.height - 16
+			};
+
+			Color buttonColor = CheckCollisionPointRec(GetMousePosition(), button) ? Color{80, 80, 80, 255} : Color{45, 45, 45, 255};
+			DrawRectangleRec(button, buttonColor);
+			DrawRectangleLinesEx(button, 2, WHITE);
+			DrawTexturePro(chessPieces, option.GetSourceRect(pieceWidth, pieceHeight), destination, origin, 0.0f, WHITE);
+		}
+	}
+
+	void DisplayCheckHighlights(ChessBoard& chessBoard){
+		for (int row = 0; row < 8; row++){
+			for (int col = 0; col < 8; col++){
+				Piece piece = chessBoard.board[row][col];
+				if (piece.type == King && chessBoard.isKingInCheck(piece.color)){
+					Vector2 center = {chessBoard.x + (col * chessBoard.size) + (chessBoard.size / 2), chessBoard.y + (row * chessBoard.size) + (chessBoard.size / 2)};
+					DrawCircleGradient(center, chessBoard.size * 0.45f, {255, 0, 0, 180}, {255, 0, 0, 0});
+				}
+			}
+		}
+	}
 
 	void Checkmate(){
 		DrawText("It's checkmate...", 190, 200, 100, RED);
 	}
+
 	void StaleMate(){
 		DrawText("It's stalemate...", 190, 200, 100, RED);
 	}
@@ -845,6 +981,7 @@ struct ChessBoard {
 
 int main(){
 	ChessBoard chessBoard;	
+	Render render;
 	chessBoard.NestBoard();
 	float squareSize = 750.0 / 8.0;
 	bool waitingForPromotion = false;
@@ -855,7 +992,6 @@ int main(){
 	PieceColor opposingColor = NoColor;
 	PieceColor promotionColor = NoColor;
 	Move currentMove = {-1, -1, -1, -1, Empty, false, false};
-	int turn = 0; // 0 = White, 1 = Black
 	bool gameOver = false;
 	bool stalemate = false;
 	
@@ -866,9 +1002,15 @@ int main(){
 	while (WindowShouldClose() == false)
 	{	Vector2 mouse = GetMousePosition();
 		// 1. Event handling
+		if (!waitingForPromotion && IsKeyPressed(KEY_LEFT) && !chessBoard.moveHistory.empty()){
+			chessBoard.undoMove();
+			gameOver = false;
+			stalemate = false;
+		}
+
 		if (waitingForPromotion){
 			if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
-				PieceType promotedType = chessBoard.GetPromotionChoice(mouse);
+				PieceType promotedType = render.GetPromotionChoice(chessBoard, mouse);
 				if (promotedType != Empty){
 					chessBoard.PromotePawn(promotionRow, promotionCol, promotedType);
 					waitingForPromotion = false;
@@ -880,8 +1022,6 @@ int main(){
 						gameOver = true;
 						stalemate = true;
 					}
-
-					turn = 1 - turn;
 				}
 			}
 		}
@@ -895,7 +1035,7 @@ int main(){
 				currentMove.toRow = (mouse.y - 100) / squareSize;
 				currentMove.toCol = (mouse.x - 100) / squareSize;
 				temp = chessBoard.board[currentMove.fromRow][currentMove.fromCol];
-				if ((temp.color == WhitePiece && turn == 0) || (temp.color == BlackPiece && turn == 1)){
+				if ((temp.color == WhitePiece && chessBoard.turn == WhitePiece) || (temp.color == BlackPiece && chessBoard.turn == BlackPiece)){
 					if (temp.color == WhitePiece){
 						opposingColor = BlackPiece;
 					}
@@ -904,7 +1044,7 @@ int main(){
 					}
 				if (chessBoard.isInsideBoard(currentMove.toRow, currentMove.toCol) && chessBoard.isLegalMove(currentMove, temp.color)){
 					bool isPromotion = chessBoard.isPromotionMove(currentMove);
-					chessBoard.makeMoveUnchecked(currentMove);
+					chessBoard.makeMove(currentMove);
 					if (isPromotion){
 						waitingForPromotion = true;
 						promotionRow = currentMove.toRow;
@@ -919,7 +1059,6 @@ int main(){
 							gameOver= true;
 							stalemate = true;
 						}
-						turn = 1 - turn;
 					}
 				}
 				}
@@ -929,17 +1068,17 @@ int main(){
 		// 3. Drawing
 		BeginDrawing();
 		ClearBackground(BLACK);
-		chessBoard.DisplayBoard();
-		chessBoard.DisplayCheckHighlights();
-		chessBoard.DisplayPieces(chessPieces);
+		render.DisplayBoard(chessBoard);
+		render.DisplayCheckHighlights(chessBoard);
+		render.DisplayPieces(chessBoard, chessPieces);
 		if (waitingForPromotion){
-			chessBoard.DisplayPromotionMenu(chessPieces, promotionColor);
+			render.DisplayPromotionMenu(chessBoard, chessPieces, promotionColor);
 		}
 		if (gameOver && !stalemate){
-			chessBoard.Checkmate();
+			render.Checkmate();
 		}
 		else if (gameOver && stalemate){
-			chessBoard.StaleMate();
+			render.StaleMate();
 		}
 		EndDrawing();
 	}
