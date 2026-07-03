@@ -118,7 +118,11 @@ endif
 GENERATED :=
 OBJECTS :=
 
+GENERATED += $(OBJDIR)/chess.o
+GENERATED += $(OBJDIR)/engine.o
 GENERATED += $(OBJDIR)/main.o
+OBJECTS += $(OBJDIR)/chess.o
+OBJECTS += $(OBJDIR)/engine.o
 OBJECTS += $(OBJDIR)/main.o
 
 # Rules
@@ -183,6 +187,12 @@ endif
 # File Rules
 # #############################################
 
+$(OBJDIR)/chess.o: src/chess.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
+$(OBJDIR)/engine.o: src/engine.cpp
+	@echo "$(notdir $<)"
+	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"
 $(OBJDIR)/main.o: src/main.cpp
 	@echo "$(notdir $<)"
 	$(SILENT) $(CXX) $(ALL_CXXFLAGS) $(FORCE_INCLUDE) -o "$@" -MF "$(@:%.o=%.d)" -c "$<"

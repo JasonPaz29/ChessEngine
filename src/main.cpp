@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <random>
 #include "chess.h"
 #include "engine.h"
 
@@ -151,6 +152,11 @@ int main(){
 	Move currentMove = {-1, -1, -1, -1, Empty, false, false};
 	bool gameOver = false;
 	bool stalemate = false;
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<int> colorChoice(0, 1);
+	PieceColor playerColor = colorChoice(gen) == 0 ? WhitePiece : BlackPiece;
+	PieceColor engineColor = chessBoard.opposite(playerColor);
 	
 	InitWindow(1000, 1000, "Chess");
 	SetTargetFPS(60);
@@ -164,8 +170,8 @@ int main(){
 			gameOver = false;
 			stalemate = false;
 		}
-		if (chessBoard.turn == WhitePiece && !gameOver) {
-		if (waitingForPromotion){
+
+		if (!gameOver && waitingForPromotion){
 			if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
 				PieceType promotedType = render.GetPromotionChoice(chessBoard, mouse);
 				if (promotedType != Empty){
@@ -182,56 +188,68 @@ int main(){
 				}
 			}
 		}
-		else if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
-			currentMove.fromCol = (mouse.x - 100) / squareSize;
-			currentMove.fromRow = (mouse.y - 100) / squareSize;	
-		}
+		else if (!gameOver && chessBoard.turn == playerColor) {
+			if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+				currentMove.fromCol = (mouse.x - 100) / squareSize;
+				currentMove.fromRow = (mouse.y - 100) / squareSize;	
+			}
 
-		if (!waitingForPromotion && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)){
-			if (chessBoard.isInsideBoard(currentMove.fromRow, currentMove.fromCol)){
-				currentMove.toRow = (mouse.y - 100) / squareSize;
-				currentMove.toCol = (mouse.x - 100) / squareSize;
-				temp = chessBoard.board[currentMove.fromRow][currentMove.fromCol];
-				if ((temp.color == WhitePiece && chessBoard.turn == WhitePiece) || (temp.color == BlackPiece && chessBoard.turn == BlackPiece)){
-					if (temp.color == WhitePiece){
-						opposingColor = BlackPiece;
-					}
-					else{
-					opposingColor = WhitePiece;
-					}
-				if (chessBoard.isInsideBoard(currentMove.toRow, currentMove.toCol) && chessBoard.isLegalMove(currentMove, temp.color)){
-					bool isPromotion = chessBoard.isPromotionMove(currentMove);
-					chessBoard.makeMove(currentMove);
-					if (isPromotion){
-						waitingForPromotion = true;
-						promotionRow = currentMove.toRow;
-						promotionCol = currentMove.toCol;
-						promotionColor = temp.color;
-					}
-					else {
-						if (chessBoard.isCheckMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
-							gameOver = true;
-						}
-						else if (chessBoard.isStaleMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
-							gameOver= true;
-							stalemate = true;
+			if (!waitingForPromotion && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)){
+				if (chessBoard.isInsideBoard(currentMove.fromRow, currentMove.fromCol)){
+					currentMove.toRow = (mouse.y - 100) / squareSize;
+					currentMove.toCol = (mouse.x - 100) / squareSize;
+					temp = chessBoard.board[currentMove.fromRow][currentMove.fromCol];
+					if (temp.color == playerColor && temp.color == chessBoard.turn){
+						opposingColor = chessBoard.opposite(temp.color);
+						if (chessBoard.isInsideBoard(currentMove.toRow, currentMove.toCol) && chessBoard.isLegalMove(currentMove, temp.color)){
+							bool isPromotion = chessBoard.isPromotionMove(currentMove);
+							chessBoard.makeMove(currentMove);
+							if (isPromotion){
+								waitingForPromotion = true;
+								promotionRow = currentMove.toRow;
+								promotionCol = currentMove.toCol;
+								promotionColor = temp.color;
+							}
+							else {
+								if (chessBoard.isCheckMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
+									gameOver = true;
+								}
+								else if (chessBoard.isStaleMate(chessBoard.generateLegalMoves(opposingColor), opposingColor)){
+									gameOver= true;
+									stalemate = true;
+								}
+							}
 						}
 					}
 				}
-				}
-				
 			}
 		}
-	}
-	else if (chessBoard.turn == BlackPiece){
-					if (gameOver){
-						continue;
+		else if (!gameOver && !waitingForPromotion && chessBoard.turn == engineColor){
+			vector<Move> legalMoves = chessBoard.generateLegalMoves(chessBoard.turn);
+			if (chessBoard.isCheckMate(legalMoves, chessBoard.turn)){
+				gameOver = true;
+			}
+			else if (chessBoard.isStaleMate(legalMoves, chessBoard.turn)){
+				gameOver = true;
+				stalemate = true;
+			}
+			else if (!legalMoves.empty()){
+				Move bestMove = engine.bestMove(legalMoves, chessBoard.turn, chessBoard);
+				if (!chessBoard.isLegalMove(bestMove, chessBoard.turn)){
+					bestMove = legalMoves[0];
+				}
+				if (chessBoard.makeMove(bestMove)){
+					PieceColor nextTurn = chessBoard.turn;
+					if (chessBoard.isCheckMate(chessBoard.generateLegalMoves(nextTurn), nextTurn)){
+						gameOver = true;
 					}
-					else{
-					Move greedyMove = engine.greedyMove(chessBoard.generateLegalMoves(chessBoard.turn), chessBoard);
-					chessBoard.makeMove(greedyMove);
+					else if (chessBoard.isStaleMate(chessBoard.generateLegalMoves(nextTurn), nextTurn)){
+						gameOver = true;
+						stalemate = true;
 					}
 				}
+			}
+		}
 
 		// 3. Drawing
 		BeginDrawing();

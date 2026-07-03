@@ -94,6 +94,156 @@ PieceColor ChessBoard::opposite(PieceColor color){
 		return ((rowDifference == 2 && colDifference == 1) || (rowDifference == 1 && colDifference == 2));
 	}
 
+    void ChessBoard::generateKnightMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves){
+        int offsets[8][2] = {
+        {-2, -1}, {-2, 1},
+        {-1, -2}, {-1, 2},
+        {1, -2}, {1, 2},
+        {2, -1}, {2, 1}
+        };
+
+        for (auto& offset: offsets){
+            int offsetRow = offset[0];
+            int offsetCol = offset[1];
+            Move move = {fromRow, fromCol, fromRow + offsetRow, fromCol + offsetCol, Empty, false, false};
+
+            if (isLegalMove(move, color)){
+                legalMoves.push_back(move);
+            }
+        }
+    }
+
+    void ChessBoard::generatePawnMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves){
+        int direction;
+
+        if (color == WhitePiece){
+            direction = -1;
+        }
+        else {
+            direction = 1;
+        }
+
+         int pawnRow = fromRow + direction;
+
+    int pawnCols[2] = {
+        fromCol + 1,
+        fromCol - 1
+    };
+
+    for (int i = 0; i < 2; i++){
+        int pawnCol = pawnCols[i];
+
+        if (!isInsideBoard(pawnRow, pawnCol)){
+            continue;
+        }
+
+        Move move = {fromRow, fromCol, pawnRow, pawnCol, Empty, false, isEnPassant({fromRow, fromCol, pawnRow, pawnCol, Empty, false, false})};
+        if (isPromotionMove(move) && isLegalMove(move, color)){
+            addPromotionMoves(legalMoves, move);
+        }
+        else if (isLegalMove(move, color)){
+            legalMoves.push_back(move);
+        }
+    }
+    //Forward one space and 2 spaces
+    Move move = {fromRow, fromCol, fromRow + direction, fromCol, Empty, false, false};
+    Move otherMove = {fromRow, fromCol, fromRow + direction * 2, fromCol, Empty, false, false};
+    if (isPromotionMove(move) && isLegalMove(move, color)){
+        addPromotionMoves(legalMoves, move);
+    }
+    else if (isLegalMove(move, color)){
+        legalMoves.push_back(move);
+    }
+    if (isLegalMove(otherMove, color)){
+        legalMoves.push_back(otherMove);
+    }
+
+    }
+
+    void ChessBoard::generateKingMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves){
+        for (int rowOffset = -1; rowOffset < 2; rowOffset++){
+			for (int colOffset = -1; colOffset < 2; colOffset++){
+				if (rowOffset == 0 && colOffset == 0){
+					continue;
+				}
+
+				int row = fromRow + rowOffset;
+				int col = fromCol + colOffset;
+
+				if (!isInsideBoard(row, col)){
+					continue;
+				}
+
+				Move move = {fromRow, fromCol, row, col, Empty, false, false};
+
+                if (isLegalMove(move, color)){
+                    legalMoves.push_back(move);
+                }
+			}
+		}
+        int kingCols[2] = {
+        fromCol + 2,
+        fromCol - 2
+    };
+    for (int i = 0; i < 2; i++){
+        int kingCol = kingCols[i];
+
+        Move move = {fromRow, fromCol, fromRow, kingCol, Empty, isCastleMove({fromRow, fromCol, fromRow, kingCol, Empty, false, false}), false};
+        if (isLegalMove(move, color)){
+            legalMoves.push_back(move);
+        }
+    }
+    
+    }
+    void ChessBoard::generateSlidingMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves){
+        Piece piece = board[fromRow][fromCol];
+        // Do Diagnols first
+        int diagnolDirections[4][2]{
+			{-1, 1}, {1, 1},
+			{-1, -1}, {1, -1}
+		};
+        if (piece.type != Rook){
+			for (auto& direction : diagnolDirections){
+				int row = fromRow + direction[0];
+				int col = fromCol + direction[1];
+
+				while (isInsideBoard(row, col)){
+					Move move = {fromRow, fromCol, row, col, Empty, false, false};
+                    if (isLegalMove(move, color)){
+                        legalMoves.push_back(move);
+                    }
+				row += direction[0];
+				col += direction[1];
+				}
+            
+            }
+			if (piece.type == Bishop){
+                return;
+        }
+			
+    }
+        //Straight Path
+        int straightDirections[4][2]{
+			{-1, 0}, {0, 1},
+			{0, -1}, {1, 0}
+		};
+		for (auto& direction : straightDirections){
+			int row = fromRow + direction[0];
+			int col = fromCol + direction[1];
+
+			while (isInsideBoard(row, col)){
+				Move move = {fromRow, fromCol, row, col, Empty, false, false};
+				if (isLegalMove(move, color)){
+                    legalMoves.push_back(move);
+                }
+                row += direction[0];
+			    col += direction[1];
+			}
+			}
+			
+			}
+
+	
 
 	bool ChessBoard::isValidPawnMove(Piece piece, Move move){
 		if (!isInsideBoard(move.toRow, move.toCol)){
@@ -480,24 +630,12 @@ PieceColor ChessBoard::opposite(PieceColor color){
 	}
 
 	void ChessBoard::undoMove(){
+        if (moveHistory.empty()){
+            return;
+        }
 		UndoInfo oldMove = moveHistory.back();
 		moveHistory.pop_back();
-		//Undo everything
-		if (oldMove.move.isCastle){
-				// King side
-				if (oldMove.move.toCol - oldMove.move.fromCol > 0){
-					board[oldMove.move.fromRow][oldMove.move.fromCol] = oldMove.movedPiece;
-					board[oldMove.move.fromRow][7] = Piece{Rook, oldMove.movedPiece.color};
-					board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
-					board[oldMove.move.toRow][5] = Piece{Empty, NoColor};
-				}
-				else{
-					board[oldMove.move.fromRow][oldMove.move.fromCol] = oldMove.movedPiece;
-					board[oldMove.move.fromRow][0] = Piece{Rook, oldMove.movedPiece.color};
-					board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
-					board[oldMove.move.toRow][3] = Piece{Empty, NoColor};
-				}
-		}
+
 		whiteCanCastleKingSide = oldMove.whiteCanCastleKingSide;
 		whiteCanCastleQueenSide = oldMove.whiteCanCastleQueenSide;
 		blackCanCastleKingSide = oldMove.blackCanCastleKingSide;
@@ -506,9 +644,26 @@ PieceColor ChessBoard::opposite(PieceColor color){
 		enPassantTargetCol = oldMove.enPassantTargetCol;
 		enPassantTargetRow = oldMove.enPassantTargetRow;
 		turn = oldMove.turn;
+
+		if (oldMove.move.isCastle){
+			if (oldMove.move.toCol - oldMove.move.fromCol > 0){
+				board[oldMove.move.fromRow][oldMove.move.fromCol] = oldMove.movedPiece;
+				board[oldMove.move.fromRow][7] = Piece{Rook, oldMove.movedPiece.color};
+				board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
+				board[oldMove.move.toRow][5] = Piece{Empty, NoColor};
+			}
+			else{
+				board[oldMove.move.fromRow][oldMove.move.fromCol] = oldMove.movedPiece;
+				board[oldMove.move.fromRow][0] = Piece{Rook, oldMove.movedPiece.color};
+				board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
+				board[oldMove.move.toRow][3] = Piece{Empty, NoColor};
+			}
+			return;
+		}
+
 		if (isInsideBoard(oldMove.capturedRow, oldMove.capturedCol)) {
     		board[oldMove.capturedRow][oldMove.capturedCol] = oldMove.capturedPiece;
-			if (oldMove.hadEnPassantTarget){
+			if (oldMove.move.isEnPassant){
 				board[oldMove.move.toRow][oldMove.move.toCol] = Piece{Empty, NoColor};
 			}
 		}
@@ -662,6 +817,7 @@ PieceColor ChessBoard::opposite(PieceColor color){
 				else {
 					direction = 1;
 				}
+				undo.move.isEnPassant = true;
 				undo.capturedPiece = board[move.toRow-direction][move.toCol];
 				undo.capturedCol = move.toCol;
 				undo.capturedRow = move.toRow-direction;
@@ -744,28 +900,36 @@ PieceColor ChessBoard::opposite(PieceColor color){
 
 	vector<Move> ChessBoard::generateLegalMoves(PieceColor color){
 		vector<Move> legalMoves;
-		float squareSize = 750.0 / 8.0;
 		for (int fromRow = 0; fromRow < 8; fromRow++){
 			for (int fromCol = 0; fromCol < 8; fromCol++){
 				Piece piece = board[fromRow][fromCol];
-
-				if (piece.color != color){
-					continue;
-				}
-				for (int toRow = 0; toRow < 8; toRow++){
-					for (int toCol = 0; toCol < 8; toCol++){
-						Move baseMove = {fromRow, fromCol, toRow, toCol, Empty, false, false};
-						Move move = {fromRow, fromCol, toRow, toCol, Empty, isCastleMove(baseMove), isEnPassant(baseMove)};
-						if (isLegalMove(move, color)){
-							if (isPromotionMove(baseMove)){
-								addPromotionMoves(legalMoves, baseMove);
-							}
-							else {
-								legalMoves.push_back(move);
-							}
-						}
-					}
-				}
+                if (piece.color != color){
+                    continue;
+                }
+                else {
+                    switch (piece.type){
+                        case PieceType::Pawn:
+                            generatePawnMoves(fromRow, fromCol, color, legalMoves);
+                            break;
+                        case PieceType::Knight:
+                            generateKnightMoves(fromRow, fromCol, color, legalMoves);
+                            break;
+                        case PieceType::Bishop:
+                            generateSlidingMoves(fromRow, fromCol, color, legalMoves);
+                            break;
+                        case PieceType::Rook:
+                            generateSlidingMoves(fromRow, fromCol, color, legalMoves);
+                            break;
+                        case PieceType::Queen:
+                            generateSlidingMoves(fromRow, fromCol, color, legalMoves);
+                            break;
+                        case PieceType::King:
+                            generateKingMoves(fromRow, fromCol, color, legalMoves);
+                            break;
+                        default:
+                            continue;
+                    }
+                }
 			}
 		}
 		return legalMoves;

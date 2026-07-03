@@ -65,6 +65,7 @@ struct ChessBoard {
 	bool hasEnPassantTarget = false;
 	int enPassantTargetRow = -1;
 	int enPassantTargetCol = -1;
+    bool endgame = false;
 	PieceColor turn = WhitePiece;
 	vector<UndoInfo> moveHistory;
 
@@ -80,6 +81,10 @@ struct ChessBoard {
 	bool isEnPassant(Move move);
 	bool isValidRookMove(Move move);
 	bool isValidQueenMove(Move move);
+    void generateKnightMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves);
+    void generatePawnMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves);
+    void generateKingMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves);
+    void generateSlidingMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves);
 	bool isCastleMove(Move move);
 	bool isValidCastle(Move move);
 	bool isValidKingMove(Move move);
