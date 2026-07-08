@@ -1,161 +1,201 @@
-# Raylib-Quickstart
-A simple cross platform template for setting up a project with the bleeding edge raylib code.
-Works with C or C++.
+# Chess Engine v1
 
-# Basic Setup
-Download this repository to get started.
+A C++ chess engine and playable chess application built with Raylib. This project implements full chess move legality, special chess rules, undo-based game state management, and a basic computer opponent using search and heuristic evaluation.
 
-You can download the zip file of the repository from the Green Code button on github. This is the simplest way to get the template to start from.
-Once you have downloaded the template, rename it to your project name.
+## Overview
 
-or
+This project started as an attempt to build a chess engine from scratch in C++. The goal was to move beyond basic web apps and work on a more algorithmic, performance-focused project involving game state, recursion, move generation, and optimization.
 
-Clone the repository with git, from the url
-```
-https://github.com/raylib-extras/raylib-quickstart.git
-```
+The current version is a playable chess program with a working engine. It supports legal chess movement, special rules, move undoing, bot move selection, alpha-beta search, and board evaluation.
 
-If you are using a command line git client you can use the command below to download and rename the template in one step
-```
-git clone https://github.com/raylib-extras/raylib-quickstart.git [name-for-your-project-here]
-```
+## Features
 
-# Naming projects
-* Replace the placeholder with your desired project name when running the git clone command above.
-* __Do not name your game project 'raylib', it will conflict with the raylib library.__
-* If you have used custom game name with __git clone__, there is no need to rename it again.
+* Playable chessboard built with Raylib
+* Full legal move validation
+* Turn-based movement
+* Check detection
+* Checkmate detection
+* Stalemate detection
+* Castling
+* En passant
+* Pawn promotion
+* Move history
+* Undo move system
+* Greedy move selection
+* Minimax / alpha-beta pruning
+* Material-based evaluation
+* Piece-square table evaluation
+* Release-mode benchmarking
+* Nodes-per-second tracking
 
+## Tech Stack
 
-## Supported Platforms
-Quickstart supports the main 3 desktop platforms:
-* Windows
-* Linux
-* MacOS
+* **Language:** C++
+* **Graphics Library:** Raylib
+* **Build Type:** Debug / Release
+* **Core Concepts:** Chess programming, recursion, alpha-beta pruning, board evaluation, move generation, performance benchmarking
 
-# VSCode Users (all platforms)
-*Note* You must have a compiler toolchain installed in addition to vscode.
+## Engine Architecture
 
-1. Download the quickstart
-2. Rename the folder to your game name
-3. Open the folder in VSCode
-4. Run the build task ( CTRL+SHIFT+B or F5 )
-5. You are good to go
+The project is separated into two main parts:
 
-# Windows Users
-There are two compiler toolchains available for windows, MinGW-W64 (a free compiler using GCC), and Microsoft Visual Studio
-## Using MinGW-W64
-* Rename the folder to your game name
-* Double click the `build-MinGW-W64.bat` file
-* CD into the folder in your terminal
-  * if you are using the W64devkit and have not added it to your system path environment variable, you must use the W64devkit.exe terminal, not CMD.exe
-  * If you want to use cmd.exe or any other terminal, please make sure that gcc/mingw-W64 is in your path environment variable.
-* run `make`
-* You are good to go
+1. **Chess Rules / Board Logic**
 
-### Note on MinGW-64 versions
-Make sure you have a modern version of MinGW-W64 (not mingw).
-The best place to get it is from the W64devkit from
-https://github.com/skeeto/w64devkit/releases
+   * Handles board state
+   * Validates piece movement
+   * Detects check, checkmate, and stalemate
+   * Handles special chess rules
+   * Maintains move history and undo functionality
 
-or the version installed with the raylib installer
+2. **Engine / Search Logic**
 
-#### If you have installed raylib from the installer
-Make sure you have added the path
+   * Generates legal moves
+   * Evaluates board positions
+   * Searches possible moves
+   * Uses alpha-beta pruning to reduce unnecessary search branches
+   * Selects the best move based on evaluation score
 
-`C:\raylib\w64devkit\bin`
+## Search Algorithm
 
-To your path environment variable so that the compiler that came with raylib can be found.
+The engine uses recursive search to evaluate future positions.
 
-DO NOT INSTALL ANOTHER MinGW-W64 from another source such as msys2, you don't need it.
+The basic process is:
 
-## Microsoft Visual Studio 2026
-* Rename the folder to your game name
-* Run `build-VisualStudio2026.bat`
-* double click the `.slnx` file that is generated
-* develop your game
-* you are good to go
+1. Generate all legal moves for the current side.
+2. Try each move.
+3. Recursively evaluate the opponent’s possible responses.
+4. Undo the move.
+5. Choose the move with the best resulting evaluation.
 
-# Linux Users
-* Rename the folder to your game name
-* CD into the build folder
-* run `./premake5 gmake`
-* CD back to the root
-* run `make`
-* you are good to go
+Alpha-beta pruning is used to skip branches that cannot affect the final decision.
 
-# MacOS Users
-* Rename the folder to your game name
-* CD into the build folder
-* run `./premake5.osx gmake`
-* CD back to the root
-* run `make`
-* you are good to go
+## Evaluation Function
 
-# Output files
-The built code will be in the bin dir
+The evaluation function currently considers:
 
-# Working directories and the resources folder
-The example uses a utility function from `path_utils.h` that will find the resources dir and set it as the current working directory. This is very useful when starting out. If you wish to manage your own working directory you can simply remove the call to the function and the header.
+* Material balance
+* Piece values
+* Piece-square tables
+* Basic positional bonuses
 
-# Changing to C++
-Simply rename `src/main.c` to `src/main.cpp` and re-run the steps above and do a clean build.
+Example piece values:
 
-# Using your own code
-Simply remove `src/main.c` and replace it with your code, and re-run the steps above and do a clean build.
-
-# Building for other OpenGL targets
-If you need to build for a different OpenGL version than the default (OpenGL 3.3) you can specify an OpenGL version in your premake command line. Just modify the bat file or add the following to your command line
-
-## For OpenGL 1.1
-`--graphics=opengl11`
-
-## For OpenGL 2.1
-`--graphics=opengl21`
-
-## For OpenGL 4.3
-`--graphics=opengl43`
-
-## For OpenGLES 2.0
-`--graphics=opengles2`
-
-## For OpenGLES 3.0
-`--graphics=opengles3`
-
-## For Software Rendering
-`--graphics=software`
-
-*Note*
-Sofware rendering does not work with glfw, use Win32 or SDL platforms
-`--backend=win32`
-
-# Adding External Libraries 
-
-Quickstart is intentionally minimal — it only includes what is required to compile and run a basic raylib project.  
-If you want to use extra libraries, you can add them to the `build/premake5.lua` file yourself using the links function.
-
-You can find the documentation for the links function here https://premake.github.io/docs/links/
-
-### Example: adding the required libraries for tinyfiledialogs on Windows
-tinyfiledialogs requires extra Windows system libraries.
-The premake file uses filters to define options that are platform specific
-https://premake.github.io/docs/Filters/
-
-Using the windows filter adds these libraries only to the windows build.
-```
-filter "system:windows"
-    links {
-        "Comdlg32",
-        "User32",
-        "Ole32",
-        "Shell32"
-    }
+```cpp
+Pawn   = 100
+Knight = 300
+Bishop = 300
+Rook   = 500
+Queen  = 900
 ```
 
-### Cross-platform reminder
-If you add a library, make sure to add its required dependencies for all platforms you plan to support (Windows, Linux, MacOS).
-Different libraries will have different dependencies on different platforms.
+Positive scores favor White. Negative scores favor Black.
+
+## Performance
+
+Current benchmark results:
+
+```text
+Release Build NPS: ~700,000 nodes/second
+Search Depth Tested: 4
+```
+
+Performance improved significantly after switching from debug builds to release builds. (~110k NPS -> ~700k NPS)
 
 
-# License
-Raylib-Quickstart by Jeffery Myers is marked with CC0 1.0. To view a copy of this license, visit https://creativecommons.org/publicdomain/zero/1.0/
+## What I Learned
 
+Through this project, I learned about:
+
+* C++ project structure
+* Raylib rendering and input handling
+* Chess board representation
+* Legal move generation
+* Special move logic
+* Recursive search
+* Minimax and alpha-beta pruning
+* Board evaluation
+* Undo-based search
+* Performance benchmarking
+* Debug vs release build performance differences
+* The difficulty of optimizing chess engines
+
+## Challenges
+
+Some of the hardest parts of this project were:
+
+* Correctly implementing all legal chess rules
+* Handling castling, en passant, and promotion
+* Detecting check and preventing illegal king moves
+* Building a reliable undo system for recursive search
+* Debugging search logic
+* Improving engine performance
+* Understanding why nodes-per-second was bottlenecking
+
+## Current Limitations
+
+This is version 1 of the engine, so there are still areas that could be improved:
+
+* Move generation is not heavily optimized
+* No bitboard representation
+* No transposition table
+* No iterative deepening
+* No quiescence search
+* No UCI support
+* Evaluation function is still basic
+* Search depth is limited by performance
+
+## Future Improvements
+
+Possible future version 2 improvements:
+
+* Rewrite move generation using bitboards or a compact board representation
+* Add transposition tables
+* Add quiescence search
+* Add iterative deepening
+* Add move ordering in alpha beta pruning
+* Add killer move heuristic
+* Add history heuristic
+* Improve evaluation function
+* Add UCI compatibility
+* Benchmark against other engines
+* Create engine version comparisons
+
+## Why This Project Matters
+
+This project was built to practice lower-level programming, algorithms, and performance-focused development. Unlike a standard CRUD web app, this project required implementing complex game rules, recursive search, state restoration, and optimization. This also helped with learning a low level language for the first time.
+
+The engine is not designed to compete with professional chess engines, but it demonstrates the foundations of chess programming and gives a strong base for a future optimized version.
+
+## How to Run
+
+From the project root:
+
+```bash
+# Build the playable Raylib app in release mode
+make config=release_x64
+
+# Run the playable chess program
+./bin/Release/chess-engine
+```
+
+For a debug build:
+
+```bash
+make config=debug_x64
+./bin/Debug/chess-engine
+```
+
+To run the headless engine benchmark without opening a Raylib window:
+
+```bash
+make config=release_x64
+./bin/Release/chess-engine --bench
+```
+
+The benchmark skips rendering, textures, input, frame timing, and the game loop. It prints search depth, best move, evaluation, nodes searched, elapsed time, NPS, and alpha-beta cutoffs.
+
+## Project Status
+
+This project is currently frozen as **v1**.
+
+The next major version may focus on a faster board representation, better search optimization, and more advanced chess engine techniques.

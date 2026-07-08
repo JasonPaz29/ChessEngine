@@ -28,11 +28,15 @@ PieceColor ChessBoard::opposite(PieceColor color){
 		board[7][1] = Piece{Knight, WhitePiece};
 		board[7][2] = Piece{Bishop, WhitePiece};
 		board[7][3] = Piece{Queen, WhitePiece};
-		board[7][4] = Piece{King, WhitePiece};
-		board[7][5] = Piece{Bishop, WhitePiece};
-		board[7][6] = Piece{Knight, WhitePiece};
-		board[7][7] = Piece{Rook, WhitePiece};
-	}
+			board[7][4] = Piece{King, WhitePiece};
+			board[7][5] = Piece{Bishop, WhitePiece};
+			board[7][6] = Piece{Knight, WhitePiece};
+			board[7][7] = Piece{Rook, WhitePiece};
+			whiteKingRow = 7;
+			whiteKingCol = 4;
+			blackKingRow = 0;
+			blackKingCol = 4;
+		}
 
 	bool ChessBoard::isFriendlyPiece(int row, int col, PieceColor color){
 		if (!isInsideBoard(row, col)){
@@ -102,16 +106,22 @@ PieceColor ChessBoard::opposite(PieceColor color){
         {2, -1}, {2, 1}
         };
 
-        for (auto& offset: offsets){
-            int offsetRow = offset[0];
-            int offsetCol = offset[1];
-            Move move = {fromRow, fromCol, fromRow + offsetRow, fromCol + offsetCol, Empty, false, false};
-
-            if (isLegalMove(move, color)){
-                legalMoves.push_back(move);
-            }
-        }
-    }
+	        for (auto& offset: offsets){
+	            int offsetRow = offset[0];
+	            int offsetCol = offset[1];
+	            Move move = {fromRow, fromCol, fromRow + offsetRow, fromCol + offsetCol, Empty, false, false};
+				if (!isInsideBoard(move.toRow, move.toCol)){
+					continue;
+				}
+				Piece targetPiece = board[move.toRow][move.toCol];
+				if (targetPiece.color == color || targetPiece.type == King){
+					continue;
+				}
+				if (isValidKnightMove(move)){
+					legalMoves.push_back(move);
+				}
+	        }
+	    }
 
     void ChessBoard::generatePawnMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves){
         int direction;
@@ -137,28 +147,31 @@ PieceColor ChessBoard::opposite(PieceColor color){
             continue;
         }
 
-        Move move = {fromRow, fromCol, pawnRow, pawnCol, Empty, false, isEnPassant({fromRow, fromCol, pawnRow, pawnCol, Empty, false, false})};
-        if (isPromotionMove(move) && isLegalMove(move, color)){
-            addPromotionMoves(legalMoves, move);
-        }
-        else if (isLegalMove(move, color)){
+	        Move move = {fromRow, fromCol, pawnRow, pawnCol, Empty, false, isEnPassant({fromRow, fromCol, pawnRow, pawnCol, Empty, false, false})};
+			if (board[pawnRow][pawnCol].type == King){
+				continue;
+			}
+	        if (isPromotionMove(move) && isValidPawnMove(board[fromRow][fromCol], move)){
+	            addPromotionMoves(legalMoves, move);
+	        }
+	        else if (isValidPawnMove(board[fromRow][fromCol], move)){
             legalMoves.push_back(move);
         }
     }
     //Forward one space and 2 spaces
     Move move = {fromRow, fromCol, fromRow + direction, fromCol, Empty, false, false};
     Move otherMove = {fromRow, fromCol, fromRow + direction * 2, fromCol, Empty, false, false};
-    if (isPromotionMove(move) && isLegalMove(move, color)){
+    if (isPromotionMove(move) && isValidPawnMove(board[fromRow][fromCol], move)){
         addPromotionMoves(legalMoves, move);
     }
-    else if (isLegalMove(move, color)){
-        legalMoves.push_back(move);
-    }
-    if (isLegalMove(otherMove, color)){
-        legalMoves.push_back(otherMove);
-    }
+		else if (isValidPawnMove(board[fromRow][fromCol], move)){
+			legalMoves.push_back(move);
+		}
+		if (isValidPawnMove(board[fromRow][fromCol], otherMove)){
+			legalMoves.push_back(otherMove);
+		}
 
-    }
+	    }
 
     void ChessBoard::generateKingMoves(int fromRow, int fromCol, PieceColor color, vector<Move>& legalMoves){
         for (int rowOffset = -1; rowOffset < 2; rowOffset++){
@@ -174,12 +187,14 @@ PieceColor ChessBoard::opposite(PieceColor color){
 					continue;
 				}
 
-				Move move = {fromRow, fromCol, row, col, Empty, false, false};
-
-                if (isLegalMove(move, color)){
-                    legalMoves.push_back(move);
-                }
-			}
+					Move move = {fromRow, fromCol, row, col, Empty, false, false};
+					if (isValidKingMove(move) && !isFriendlyPiece(row, col, color)){
+						if (board[row][col].type != King){
+							legalMoves.push_back(move);
+						}
+					}
+	                
+				}
 		}
         int kingCols[2] = {
         fromCol + 2,
@@ -189,9 +204,10 @@ PieceColor ChessBoard::opposite(PieceColor color){
         int kingCol = kingCols[i];
 
         Move move = {fromRow, fromCol, fromRow, kingCol, Empty, isCastleMove({fromRow, fromCol, fromRow, kingCol, Empty, false, false}), false};
-        if (isLegalMove(move, color)){
-            legalMoves.push_back(move);
-        }
+		if (isValidCastle(move)){
+        legalMoves.push_back(move);
+		}
+        
     }
     
     }
@@ -209,9 +225,25 @@ PieceColor ChessBoard::opposite(PieceColor color){
 
 				while (isInsideBoard(row, col)){
 					Move move = {fromRow, fromCol, row, col, Empty, false, false};
-                    if (isLegalMove(move, color)){
-                        legalMoves.push_back(move);
-                    }
+                    Piece targetPiece = board[row][col];
+				if (targetPiece.color == color){
+					break;
+				}
+					else if (targetPiece.color == opposite(color)){
+						if (targetPiece.type != King){
+							legalMoves.push_back(move);
+							break;
+						}
+					else {
+						break;
+					}
+				}
+				else if (targetPiece.color == NoColor){
+				legalMoves.push_back(move);
+				}
+                else {
+					break;
+				}
 				row += direction[0];
 				col += direction[1];
 				}
@@ -233,11 +265,27 @@ PieceColor ChessBoard::opposite(PieceColor color){
 
 			while (isInsideBoard(row, col)){
 				Move move = {fromRow, fromCol, row, col, Empty, false, false};
-				if (isLegalMove(move, color)){
-                    legalMoves.push_back(move);
-                }
-                row += direction[0];
-			    col += direction[1];
+				Piece targetPiece = board[row][col];
+				if (targetPiece.color == color){
+					break;
+				}
+					else if (targetPiece.color == opposite(color)){
+						if (targetPiece.type != King){
+							legalMoves.push_back(move);
+							break;
+						}
+					else {
+						break;
+					}
+				}
+				else if (targetPiece.color == NoColor){	
+				legalMoves.push_back(move);
+				}
+                else {
+					break;
+				}
+			row += direction[0];
+			col += direction[1];
 			}
 			}
 			
@@ -570,24 +618,15 @@ PieceColor ChessBoard::opposite(PieceColor color){
 				isAttackedDiagonally(row, col, color));
 	}
 
-	bool ChessBoard::isKingInCheck(PieceColor color){
-		PieceColor attacker;
-		for (int row = 0; row < 8; row++){
-			for (int col = 0; col < 8; col++){
-				Piece piece = board[row][col];
-				if (piece.type == King && piece.color == color){
-					if (piece.color == WhitePiece){
-						attacker = BlackPiece;
-					}
-					else {
-						attacker = WhitePiece;
-					}
-					return isSquareAttacked(row, col, attacker);
-				}
+		bool ChessBoard::isKingInCheck(PieceColor color){
+			if (color == WhitePiece){
+				return isSquareAttacked(whiteKingRow, whiteKingCol, BlackPiece);
 			}
+			else if (color == BlackPiece){
+				return isSquareAttacked(blackKingRow, blackKingCol, WhitePiece);
+			}
+			return false;
 		}
-		return false;
-	}
 
 	void ChessBoard::PromotePawn(int row, int col, PieceType promotedType){
 		Piece pawn = board[row][col];
@@ -640,10 +679,14 @@ PieceColor ChessBoard::opposite(PieceColor color){
 		whiteCanCastleQueenSide = oldMove.whiteCanCastleQueenSide;
 		blackCanCastleKingSide = oldMove.blackCanCastleKingSide;
 		blackCanCastleQueenSide = oldMove.blackCanCastleQueenSide;
-		hasEnPassantTarget = oldMove.hadEnPassantTarget;
-		enPassantTargetCol = oldMove.enPassantTargetCol;
-		enPassantTargetRow = oldMove.enPassantTargetRow;
-		turn = oldMove.turn;
+			hasEnPassantTarget = oldMove.hadEnPassantTarget;
+			enPassantTargetCol = oldMove.enPassantTargetCol;
+			enPassantTargetRow = oldMove.enPassantTargetRow;
+			whiteKingRow = oldMove.whiteKingRow;
+			whiteKingCol = oldMove.whiteKingCol;
+			blackKingRow = oldMove.blackKingRow;
+			blackKingCol = oldMove.blackKingCol;
+			turn = oldMove.turn;
 
 		if (oldMove.move.isCastle){
 			if (oldMove.move.toCol - oldMove.move.fromCol > 0){
@@ -686,91 +729,93 @@ PieceColor ChessBoard::opposite(PieceColor color){
 		return true;
 	}
 
-	void ChessBoard::makeMoveUnchecked(Move move){
-		int direction;
-		UndoInfo undo;
-		undo.move = move;
-		undo.whiteCanCastleKingSide = whiteCanCastleKingSide;
-		undo.whiteCanCastleQueenSide = whiteCanCastleQueenSide;
-		undo.blackCanCastleKingSide = blackCanCastleKingSide;
+		void ChessBoard::makeMoveUnchecked(Move move){
+			UndoInfo undo;
+			undo.move = move;
+			undo.whiteCanCastleKingSide = whiteCanCastleKingSide;
+			undo.whiteCanCastleQueenSide = whiteCanCastleQueenSide;
+			undo.blackCanCastleKingSide = blackCanCastleKingSide;
 		undo.blackCanCastleQueenSide = blackCanCastleQueenSide;
-		undo.hadEnPassantTarget = hasEnPassantTarget;
-		undo.enPassantTargetCol = enPassantTargetCol;
-		undo.enPassantTargetRow = enPassantTargetRow;
-		undo.turn = turn;
-		if (!isInsideBoard(move.fromRow, move.fromCol) || !isInsideBoard(move.toRow, move.toCol)){
-			return;
-		}
-
-		Piece movingPiece = board[move.fromRow][move.fromCol];
-		bool isEnPassantCapture = movingPiece.type == Pawn &&
-								  hasEnPassantTarget &&
-								  move.toRow == enPassantTargetRow &&
-								  move.toCol == enPassantTargetCol &&
-								  board[move.toRow][move.toCol].type == Empty &&
-								  abs(move.toCol - move.fromCol) == 1;
-
-		hasEnPassantTarget = false;
-		enPassantTargetRow = -1;
-		enPassantTargetCol = -1;
-
-		if (isCastleMove(move)){
-			undo.move.isCastle = true;
-			Piece king = board[move.fromRow][move.fromCol];
-			undo.movedPiece = king;
-			undo.capturedPiece = Piece{Empty, NoColor};
-			undo.capturedCol = -1;
-			undo.capturedRow = -1;
-			int rookFromCol = (move.toCol > move.fromCol) ? 7 : 0;
-			int rookToCol = (move.toCol > move.fromCol) ? move.toCol - 1 : move.toCol + 1;
-			Piece rook = board[move.fromRow][rookFromCol];
-
-			board[move.toRow][move.toCol] = king;
-			board[move.fromRow][move.fromCol] = Piece{Empty, NoColor};
-			board[move.fromRow][rookToCol] = rook;
-			board[move.fromRow][rookFromCol] = Piece{Empty, NoColor};
-
-			if (king.color == WhitePiece){
-				whiteCanCastleKingSide = false;
-				whiteCanCastleQueenSide = false;
+			undo.hadEnPassantTarget = hasEnPassantTarget;
+			undo.enPassantTargetCol = enPassantTargetCol;
+			undo.enPassantTargetRow = enPassantTargetRow;
+			undo.whiteKingRow = whiteKingRow;
+			undo.whiteKingCol = whiteKingCol;
+			undo.blackKingRow = blackKingRow;
+			undo.blackKingCol = blackKingCol;
+			undo.turn = turn;
+			if (!isInsideBoard(move.fromRow, move.fromCol) || !isInsideBoard(move.toRow, move.toCol)){
+				return;
 			}
-			else {
-				blackCanCastleKingSide = false;
-				blackCanCastleQueenSide = false;
-			}
-		}
-		
-		else{
-			Piece temp = movingPiece;
-			Piece captured = isInsideBoard(move.toRow, move.toCol) ? board[move.toRow][move.toCol] : Piece{Empty, NoColor};
-			undo.capturedPiece = board[move.toRow][move.toCol];
-			if (undo.capturedPiece.type == Empty){
+
+			Piece movingPiece = board[move.fromRow][move.fromCol];
+			Piece capturedPiece = board[move.toRow][move.toCol];
+			undo.movedPiece = movingPiece;
+			undo.capturedPiece = capturedPiece;
+			undo.capturedRow = capturedPiece.type == Empty ? -1 : move.toRow;
+			undo.capturedCol = capturedPiece.type == Empty ? -1 : move.toCol;
+
+			bool isEnPassantCapture = movingPiece.type == Pawn &&
+									  hasEnPassantTarget &&
+									  move.toRow == enPassantTargetRow &&
+									  move.toCol == enPassantTargetCol &&
+									  board[move.toRow][move.toCol].type == Empty &&
+									  abs(move.toCol - move.fromCol) == 1;
+
+			hasEnPassantTarget = false;
+			enPassantTargetRow = -1;
+			enPassantTargetCol = -1;
+
+			if (isCastleMove(move)){
+				undo.move.isCastle = true;
+				Piece king = board[move.fromRow][move.fromCol];
+				undo.capturedPiece = Piece{Empty, NoColor};
 				undo.capturedCol = -1;
 				undo.capturedRow = -1;
-			}
-			else{
-			undo.capturedRow = move.toRow;
-			undo.capturedCol = move.toCol;
-			}
-			if (temp.type != Empty){
-				temp.selected = true;
-			}
-			if (temp.type == King){
-				if (temp.color == WhitePiece){
+				int rookFromCol = (move.toCol > move.fromCol) ? 7 : 0;
+				int rookToCol = (move.toCol > move.fromCol) ? move.toCol - 1 : move.toCol + 1;
+			Piece rook = board[move.fromRow][rookFromCol];
+
+				board[move.toRow][move.toCol] = king;
+				board[move.fromRow][move.fromCol] = Piece{Empty, NoColor};
+				board[move.fromRow][rookToCol] = rook;
+				board[move.fromRow][rookFromCol] = Piece{Empty, NoColor};
+
+				if (king.color == WhitePiece){
+					whiteKingRow = move.toRow;
+					whiteKingCol = move.toCol;
 					whiteCanCastleKingSide = false;
 					whiteCanCastleQueenSide = false;
 				}
-				else{
+				else {
+					blackKingRow = move.toRow;
+					blackKingCol = move.toCol;
 					blackCanCastleKingSide = false;
 					blackCanCastleQueenSide = false;
-				}
-			}
-			else if (temp.type == Rook){
-				if (temp.color == WhitePiece){
-					if (move.fromRow == 7 && move.fromCol == 7){
-						whiteCanCastleKingSide = false;
 					}
-					else if (move.fromRow == 7 && move.fromCol == 0){
+			}
+			
+			else{
+					if (movingPiece.type == King){
+						if (movingPiece.color == WhitePiece){
+							whiteKingRow = move.toRow;
+							whiteKingCol = move.toCol;
+							whiteCanCastleKingSide = false;
+							whiteCanCastleQueenSide = false;
+					}
+					else{
+						blackKingRow = move.toRow;
+						blackKingCol = move.toCol;
+						blackCanCastleKingSide = false;
+							blackCanCastleQueenSide = false;
+						}
+				}
+				else if (movingPiece.type == Rook){
+					if (movingPiece.color == WhitePiece){
+						if (move.fromRow == 7 && move.fromCol == 7){
+							whiteCanCastleKingSide = false;
+						}
+						else if (move.fromRow == 7 && move.fromCol == 0){
 						whiteCanCastleQueenSide = false;
 					}
 				}
@@ -779,71 +824,54 @@ PieceColor ChessBoard::opposite(PieceColor color){
 						blackCanCastleKingSide = false;
 					}
 					else if (move.fromRow == 0 && move.fromCol == 0){
+							blackCanCastleQueenSide = false;
+						}
+					}
+					}
+				else if (movingPiece.type == Pawn){
+					if (abs(move.toRow - move.fromRow) == 2){
+						hasEnPassantTarget = true;
+						enPassantTargetCol = move.fromCol;
+						enPassantTargetRow = (move.toRow + move.fromRow) / 2;
+					}
+				}
+
+				if (capturedPiece.type == Rook){
+					if (capturedPiece.color == WhitePiece){
+						if (move.toRow == 7 && move.toCol == 7){
+							whiteCanCastleKingSide = false;
+						}
+						else if (move.toRow == 7 && move.toCol == 0){
+							whiteCanCastleQueenSide = false;
+						}
+					}
+					else if (capturedPiece.color == BlackPiece){
+						if (move.toRow == 0 && move.toCol == 7){
+							blackCanCastleKingSide = false;
+						}
+						else if (move.toRow == 0 && move.toCol == 0){
 						blackCanCastleQueenSide = false;
 					}
 				}
 				}
-			else if (temp.type == Pawn){
-				if (abs(move.toRow - move.fromRow) == 2){
-					hasEnPassantTarget = true;
-					enPassantTargetCol = move.fromCol;
-					enPassantTargetRow = (move.toRow + move.fromRow) / 2;
-				}
-			}
 
-			if (captured.type == Rook){
-				if (captured.color == WhitePiece){
-					if (move.toRow == 7 && move.toCol == 7){
-						whiteCanCastleKingSide = false;
-					}
-					else if (move.toRow == 7 && move.toCol == 0){
-						whiteCanCastleQueenSide = false;
-					}
+				else if (isEnPassantCapture){
+					int direction = movingPiece.color == WhitePiece ? -1 : 1;
+					undo.move.isEnPassant = true;
+					undo.capturedPiece = board[move.toRow-direction][move.toCol];
+					undo.capturedCol = move.toCol;
+					undo.capturedRow = move.toRow-direction;
+					board[move.toRow-direction][move.toCol] = Piece{Empty, NoColor};
 				}
-				else if (captured.color == BlackPiece){
-					if (move.toRow == 0 && move.toCol == 7){
-						blackCanCastleKingSide = false;
-					}
-					else if (move.toRow == 0 && move.toCol == 0){
-						blackCanCastleQueenSide = false;
-					}
-				}
-			}
 
-			else if (isEnPassantCapture){
-				if (temp.color == WhitePiece){
-					direction = -1;
+				board[move.toRow][move.toCol] = movingPiece;
+				board[move.fromRow][move.fromCol] = Piece{Empty, NoColor};
+				if (move.promotion != Empty && movingPiece.type == Pawn){
+					board[move.toRow][move.toCol].type = move.promotion;
 				}
-				else {
-					direction = 1;
-				}
-				undo.move.isEnPassant = true;
-				undo.capturedPiece = board[move.toRow-direction][move.toCol];
-				undo.capturedCol = move.toCol;
-				undo.capturedRow = move.toRow-direction;
-				board[move.toRow-direction][move.toCol] = Piece{Empty, NoColor};
 			}
-				
-	// 2. Updating Positions
-			if (temp.selected) {
-				// Stop dragging when mouse button is released
-					if (move.toRow >= 0 && move.toRow < 8 && move.toCol >= 0 && move.toCol < 8) {
-							board[move.toRow][move.toCol] = temp;
-							undo.movedPiece = board[move.fromRow][move.fromCol];
-							board[move.fromRow][move.fromCol] = Piece{Empty, NoColor};
-							if (move.promotion != Empty && temp.type == Pawn){
-								board[move.toRow][move.toCol].type = move.promotion;
-							}
-						}
-						else {
-							board[move.fromRow][move.fromCol] = temp;
-						}
-						
-					}
-					temp.selected = false;
-			}
-			moveHistory.push_back(undo);
-	}
+				moveHistory.push_back(undo);
+		}
 
 	bool ChessBoard::isPseudoLegal(Move move){
 		if (!isInsideBoard(move.fromRow, move.fromCol) || !isInsideBoard(move.toRow, move.toCol)){
@@ -892,14 +920,14 @@ PieceColor ChessBoard::opposite(PieceColor color){
 		if (!isPseudoLegal(move)){
 			return false;
 		}
-		ChessBoard simulatedBoard = *this;
-    	simulatedBoard.makeMoveUnchecked(move);
-
-    	return !simulatedBoard.isKingInCheck(color);
+		makeMoveUnchecked(move);
+		bool legal = !isKingInCheck(color);
+		undoMove();
+    	return legal;
 	}
 
-	vector<Move> ChessBoard::generateLegalMoves(PieceColor color){
-		vector<Move> legalMoves;
+	vector<Move> ChessBoard::generatePseudoLegalMoves(PieceColor color){
+		vector<Move> pseudoLegalMoves;
 		for (int fromRow = 0; fromRow < 8; fromRow++){
 			for (int fromCol = 0; fromCol < 8; fromCol++){
 				Piece piece = board[fromRow][fromCol];
@@ -909,28 +937,43 @@ PieceColor ChessBoard::opposite(PieceColor color){
                 else {
                     switch (piece.type){
                         case PieceType::Pawn:
-                            generatePawnMoves(fromRow, fromCol, color, legalMoves);
+                            generatePawnMoves(fromRow, fromCol, color, pseudoLegalMoves);
                             break;
                         case PieceType::Knight:
-                            generateKnightMoves(fromRow, fromCol, color, legalMoves);
+                            generateKnightMoves(fromRow, fromCol, color, pseudoLegalMoves);
                             break;
                         case PieceType::Bishop:
-                            generateSlidingMoves(fromRow, fromCol, color, legalMoves);
+                            generateSlidingMoves(fromRow, fromCol, color, pseudoLegalMoves);
                             break;
                         case PieceType::Rook:
-                            generateSlidingMoves(fromRow, fromCol, color, legalMoves);
+                            generateSlidingMoves(fromRow, fromCol, color, pseudoLegalMoves);
                             break;
                         case PieceType::Queen:
-                            generateSlidingMoves(fromRow, fromCol, color, legalMoves);
+                            generateSlidingMoves(fromRow, fromCol, color, pseudoLegalMoves);
                             break;
                         case PieceType::King:
-                            generateKingMoves(fromRow, fromCol, color, legalMoves);
+                            generateKingMoves(fromRow, fromCol, color, pseudoLegalMoves);
                             break;
                         default:
                             continue;
                     }
                 }
 			}
+		}
+		return pseudoLegalMoves;
+	}
+
+	vector<Move> ChessBoard::generateLegalMoves(PieceColor color){
+		vector<Move> pseudoLegalMoves = generatePseudoLegalMoves(color);
+		vector<Move> legalMoves;
+		legalMoves.reserve(pseudoLegalMoves.size());
+
+		for (Move move: pseudoLegalMoves){
+			makeMoveUnchecked(move);
+			if (!isKingInCheck(color)){
+				legalMoves.push_back(move);
+			}
+			undoMove();
 		}
 		return legalMoves;
 	}

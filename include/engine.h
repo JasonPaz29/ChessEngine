@@ -3,6 +3,9 @@
 #include "chess.h"
 
 struct Engine {
+    long long nodesSearched = 0;
+    long long cutoffs = 0;
+
     const int pawnTable[8][8] = {
     {  0,   0,   0,   0,   0,   0,   0,   0 },
     { 50,  50,  50,  50,  50,  50,  50,  50 },
@@ -80,14 +83,16 @@ const int kingEndGameTable[8][8] = {
     { -50, -30, -30, -30, -30, -30, -30, -50 }
 };
     Move randomMove(vector<Move> legalMoves);
-    int evaluateBoard(ChessBoard& board,PieceColor engineColor, vector<Move> legalMoves);
+    int evaluateBoard(ChessBoard& board,PieceColor engineColor, vector<Move>& legalMoves);
     int evaluateMaterial(ChessBoard& board);
     int evaluatePieceSquareTables(ChessBoard& board);
     int evaluateMobility(ChessBoard& board, vector<Move> legalMoves, PieceColor engineColor);
-    int evaluateKingSafety(ChessBoard& board);
+    int evaluateKingSafety(ChessBoard& board, vector<Move>& legalMoves, PieceColor engineColor);
     int evaluateRooks(ChessBoard& board);
+    bool isEndgame(ChessBoard& board);
     int getPieceSquareValue(Piece piece, int row, int col, bool endgame);
     Move greedyMove(vector<Move> legalMoves, ChessBoard& chessBoard);
-    int miniMax(vector<Move> legalMoves, int depth, PieceColor maximizingColor, int alpha, int beta, ChessBoard& chessBoard);
-    Move bestMove(vector<Move>, PieceColor engineColor, ChessBoard& chessBoard);
+    int miniMax(vector<Move>& legalMoves, int depth, PieceColor maximizingColor, int alpha, int beta, ChessBoard& chessBoard);
+    Move searchBestMoveAtDepth(vector<Move>& legalMoves, PieceColor engineColor, ChessBoard& chessBoard, int depth, int& bestScore);
+    Move bestMove(vector<Move>& legalMoves, PieceColor engineColor, ChessBoard& chessBoard);
 };

@@ -23,7 +23,6 @@ enum PieceType {
 struct Piece {
 	PieceType type; // 0 = K, 1 = Q, 2 = B, 3 = N, 4 = R, 5 = P
 	PieceColor color; // 0 = W, 1 = B
-	bool selected;
 };
 
 struct Move {
@@ -53,6 +52,11 @@ struct UndoInfo {
 	int enPassantTargetRow;
 	int enPassantTargetCol;
 
+	int whiteKingRow;
+	int whiteKingCol;
+	int blackKingRow;
+	int blackKingCol;
+
 	PieceColor turn;
 };
 
@@ -65,7 +69,10 @@ struct ChessBoard {
 	bool hasEnPassantTarget = false;
 	int enPassantTargetRow = -1;
 	int enPassantTargetCol = -1;
-    bool endgame = false;
+	int whiteKingRow = 7;
+	int whiteKingCol = 4;
+	int blackKingRow = 0;
+	int blackKingCol = 4;
 	PieceColor turn = WhitePiece;
 	vector<UndoInfo> moveHistory;
 
@@ -104,6 +111,7 @@ struct ChessBoard {
 	void addPromotionMoves(vector<Move>& legalMoves, Move baseMove);
 	bool isLegalMove(Move move, PieceColor color);
 	vector<Move> generateLegalMoves(PieceColor color);
+    vector<Move> generatePseudoLegalMoves(PieceColor color);
 	bool isCheckMate(vector<Move> legalMoves, PieceColor kingColor);
 	bool isStaleMate(vector<Move> legalMoves, PieceColor kingColor);
     

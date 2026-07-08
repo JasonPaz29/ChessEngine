@@ -3,6 +3,8 @@
 #include <cmath>
 #include <vector>
 #include <random>
+#include <chrono>
+#include <string>
 #include "chess.h"
 #include "engine.h"
 
@@ -133,10 +135,92 @@ struct Render {
 	void StaleMate(){
 		DrawText("It's stalemate...", 190, 200, 100, RED);
 	}
-};
+	};
 
 
-int main(){
+const char* colorName(PieceColor color){
+	if (color == WhitePiece){
+		return "white";
+	}
+	if (color == BlackPiece){
+		return "black";
+	}
+	return "none";
+}
+
+char promotionChar(PieceType type){
+	switch (type){
+		case Queen:
+			return 'q';
+		case Rook:
+			return 'r';
+		case Bishop:
+			return 'b';
+		case Knight:
+			return 'n';
+		default:
+			return '\0';
+	}
+}
+
+std::string moveToString(Move move){
+	if (move.fromRow < 0 || move.fromCol < 0 || move.toRow < 0 || move.toCol < 0){
+		return "none";
+	}
+
+	std::string text;
+	text += static_cast<char>('a' + move.fromCol);
+	text += static_cast<char>('8' - move.fromRow);
+	text += static_cast<char>('a' + move.toCol);
+	text += static_cast<char>('8' - move.toRow);
+
+	char promotion = promotionChar(move.promotion);
+	if (promotion != '\0'){
+		text += promotion;
+	}
+
+	return text;
+}
+
+void runEngineBenchmark(){
+	std::cout << "Headless engine benchmark: no raylib window, drawing, textures, input, FPS limit, or frame loop." << std::endl;
+
+	for (int depth : {4, 5}){
+		ChessBoard chessBoard;
+		Engine engine;
+		chessBoard.NestBoard();
+
+		PieceColor searchColor = chessBoard.turn;
+		vector<Move> legalMoves = chessBoard.generateLegalMoves(searchColor);
+
+		engine.nodesSearched = 0;
+		engine.cutoffs = 0;
+		auto searchStart = std::chrono::steady_clock::now();
+		int bestScore = 0;
+		Move bestMove = engine.searchBestMoveAtDepth(legalMoves, searchColor, chessBoard, depth, bestScore);
+		auto searchEnd = std::chrono::steady_clock::now();
+
+		double elapsedSeconds = std::chrono::duration<double>(searchEnd - searchStart).count();
+		double nps = elapsedSeconds > 0.0 ? engine.nodesSearched / elapsedSeconds : 0.0;
+
+		std::cout << "depth: " << depth
+				  << " | side: " << colorName(searchColor)
+				  << " | best move: " << moveToString(bestMove)
+				  << " | evaluation: " << bestScore
+				  << " | nodes searched: " << engine.nodesSearched
+				  << " | elapsed time: " << elapsedSeconds << "s"
+				  << " | NPS: " << nps
+				  << " | cutoffs: " << engine.cutoffs
+				  << std::endl;
+	}
+}
+
+int main(int argc, char* argv[]){
+	if (argc > 1 && std::string(argv[1]) == "--bench"){
+		runEngineBenchmark();
+		return 0;
+	}
+
 	ChessBoard chessBoard;	
 	Engine engine;
 	Render render;
@@ -159,7 +243,7 @@ int main(){
 	PieceColor engineColor = chessBoard.opposite(playerColor);
 	
 	InitWindow(1000, 1000, "Chess");
-	SetTargetFPS(60);
+	SetTargetFPS(20);
 	Texture2D chessPieces = LoadTexture("resources/Chess_Pieces_Sprite.svg.png");
 	// Game Loop
 	while (WindowShouldClose() == false)
